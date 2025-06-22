@@ -21,11 +21,13 @@ if not all([os.getenv("EMAIL"), os.getenv("PASSWORD"), os.getenv("EMAIL2"), os.g
     exit(1)
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-SERVICE_ACCOUNT_FILE = 'creds/service_account.json'
+# SERVICE_ACCOUNT_FILE = 'creds/service_account.json'
+json_str = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+service_account_info = json.loads(json_str)
 
 
 def get_gspread_client():
-    creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+    creds = Credentials.from_service_account_info(service_account_info, scopes=SCOPES)
     return gspread.authorize(creds)
 
 LOGIN_URL = "https://tickets.mevalim.co.il/auth/sign-in"
