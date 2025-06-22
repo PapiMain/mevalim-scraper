@@ -22,13 +22,19 @@ if not all([os.getenv("EMAIL"), os.getenv("PASSWORD"), os.getenv("EMAIL2"), os.g
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
 # SERVICE_ACCOUNT_FILE = 'creds/service_account.json'
+
 json_str = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
 service_account_info = json.loads(json_str)
 
-
 def get_gspread_client():
+
+    # 🔧 Fix the line breaks in the private key
+    if "private_key" in service_account_info:
+        service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
+
     creds = Credentials.from_service_account_info(service_account_info, scopes=SCOPES)
     return gspread.authorize(creds)
+
 
 LOGIN_URL = "https://tickets.mevalim.co.il/auth/sign-in"
 EVENTS_URL = "https://tickets.mevalim.co.il/manager/events"
@@ -108,8 +114,6 @@ def login_and_scrape(user):
     return results
 
 
-
-
 # Update Google Sheet with ticket data
 def update_sheet_with_ticket_data(sheet, all_ticket_data): 
     print("📥 Updating Google Sheet with ticket data...")
@@ -185,7 +189,6 @@ def main():
         print("❌ ERROR: No private key found in GOOGLE_SERVICE_ACCOUNT_JSON.")
         exit(1)
 
-
     # try:
     #     if WEBHOOK_URL:
     #         res = requests.post(WEBHOOK_URL, json={"events": all_events})
@@ -201,7 +204,6 @@ def main():
         update_sheet_with_ticket_data(sheet, all_events)
     except Exception as e:
         print("❌ Failed to update Google Sheet:", e)
-
 
 if __name__ == "__main__":
     main()
