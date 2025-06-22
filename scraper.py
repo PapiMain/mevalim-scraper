@@ -180,6 +180,11 @@ def main():
             time.sleep(5)
 
     print(f"✅ Scraped {len(all_events)} events total.")
+    print(f"🔍 Loaded service account email: {service_account_info.get('client_email')}")
+    if not service_account_info.get("private_key"):
+        print("❌ ERROR: No private key found in GOOGLE_SERVICE_ACCOUNT_JSON.")
+        exit(1)
+
 
     # try:
     #     if WEBHOOK_URL:
