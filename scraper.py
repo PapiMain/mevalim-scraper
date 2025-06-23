@@ -139,7 +139,7 @@ def update_sheet_with_ticket_data(sheet, all_ticket_data):
                 and row.get("ארגון") == "מבלים"
             ):
                 sheet.update_cell(i, sold_col + 1, ticket["sold"])
-                sheet.update_cell(i, total_col + 1, ticket["available"])
+                # sheet.update_cell(i, total_col + 1, ticket["available"])
                 sheet.update_cell(i, updated_col + 1, datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
                 updated_rows.append(i)
                 found = True
@@ -188,7 +188,8 @@ def main():
     if not service_account_info.get("private_key"):
         print("❌ ERROR: No private key found in GOOGLE_SERVICE_ACCOUNT_JSON.")
         exit(1)
-
+        
+    # --- backup update, sends it to make automation to update sheet
     # try:
     #     if WEBHOOK_URL:
     #         res = requests.post(WEBHOOK_URL, json={"events": all_events})
