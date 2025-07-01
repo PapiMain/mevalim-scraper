@@ -11,6 +11,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from tabulate import tabulate
+import re
 
 # Load environment variables
 load_dotenv()
