@@ -87,7 +87,7 @@ def login_and_scrape(user):
 
             # --- Get the sold number
             try:
-                sold_div = cols[2].find_element(By.XPATH, ".//div[contains(@class,'flex-col')]//div[contains(@class,'font-medium')]")
+                sold_div = cols[2].find_element(By.CSS_SELECTOR, "div.flex.flex-col div.font-medium")
                 sold = int(sold_div.text.strip())
             except Exception as e:
                 print(f"⚠️ Couldn't extract 'sold' from row: {e}")
@@ -95,7 +95,7 @@ def login_and_scrape(user):
 
             # --- Get the available number (extract number from "47 נותרו")
             try:
-                available_div = cols[2].find_element(By.XPATH, ".//div[contains(@class,'flex-col')]//div[contains(text(),'נותרו')]")
+                available_div = cols[2].find_element(By.CSS_SELECTOR, "div.flex.flex-col div.text-xs")
                 match = re.search(r'(\d+)', available_div.text.strip())
                 available = int(match.group(1)) if match else 0
             except Exception as e:
@@ -157,7 +157,8 @@ def update_sheet_with_ticket_data(sheet, all_ticket_data):
             not_updated.append(ticket)
 
     # ✅ Print result summary
-    unique_events = set()
+    updated_data = []
+
     for ticket in all_ticket_data:
         ticket_date = ticket["date"]
         try:
@@ -165,16 +166,20 @@ def update_sheet_with_ticket_data(sheet, all_ticket_data):
             ticket_date = dt.strftime("%d/%m/%Y")
         except:
             continue
-        if any(i for i in updated_rows if (
-            ticket["title"] == records[i - 2].get("הפקה") and
-            ticket_date == records[i - 2].get("תאריך")
-        )):
-            unique_events.add((ticket["title"], ticket_date))
+        for i in updated_rows:
+            row = records[i - 2]
+            if (
+                ticket["title"] == row.get("הפקה") and
+                ticket_date == row.get("תאריך")
+            ):
+                updated_data.append(ticket)
+                break
 
+    # Now print like not_updated
     print(f"✅ Updated {len(updated_rows)} rows in sheet.")
-    print(f"🗂️  That covers {len(unique_events)} unique events.")
-
+    print(f"🗂️  That covers {len(updated_data)} unique events.")
     print("🟩 Row numbers updated:", updated_rows)
+    print(tabulate(updated_data, headers="keys", tablefmt="grid", stralign="center"))
 
     if not_updated:
         print(f"\n⚠️ {len(not_updated)} items were NOT matched in the sheet:")
