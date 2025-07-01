@@ -12,6 +12,7 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime
 from tabulate import tabulate
 import re
+import pytz
 
 # Load environment variables
 load_dotenv()
@@ -148,6 +149,8 @@ def update_sheet_with_ticket_data(sheet, all_ticket_data):
 
     for ticket in all_ticket_data:
         ticket_date = ticket["date"]
+        israel_tz = pytz.timezone('Asia/Jerusalem')
+        now_in_israel = datetime.now(israel_tz)
 
         found = False
         for i, row in enumerate(records, start=2):  # start=2 to skip header
@@ -158,7 +161,7 @@ def update_sheet_with_ticket_data(sheet, all_ticket_data):
             ):
                 sheet.update_cell(i, sold_col + 1, ticket["sold"])
                 # sheet.update_cell(i, total_col + 1, ticket["available"])
-                sheet.update_cell(i, updated_col + 1, datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+                sheet.update_cell(i, updated_col + 1, now_in_israel.strftime("%d/%m/%Y %H:%M:%S"))
                 updated_rows.append(i)
                 found = True
                 break
