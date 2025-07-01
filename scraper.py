@@ -84,17 +84,14 @@ def login_and_scrape(user):
             date_str = spans[1].text.strip().replace(".", "/") if len(spans) > 1 else ""
             location = spans[2].text.strip() if len(spans) > 2 else ""
 
-            # Sold and Available column (e.g. "0 (0%)" + "נותרו: 37")
-            sold_text = cols[2].text.strip()  # multi-line text
+            sold_div = cols[2].find_element(By.CSS_SELECTOR, "div.text-slate-800")
+            available_div = cols[2].find_element(By.CSS_SELECTOR, "div.text-xs")
 
-            # Extract sold number - first number in the text
-            import re
-            sold_match = re.search(r'\d+', sold_text)
-            sold = int(sold_match.group()) if sold_match else 0
+            sold = int(sold_div.text.strip()) if sold_div else 0
 
-            # Extract available number - after "נותרו:" if exists
-            available_match = re.search(r'נותרו:\s*(\d+)', sold_text)
+            available_match = re.search(r'(\d+)', available_div.text.strip())
             available = int(available_match.group(1)) if available_match else 0
+
 
             results.append({
                 "title": title,
