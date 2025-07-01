@@ -85,13 +85,22 @@ def login_and_scrape(user):
             date_str = spans[1].text.strip().replace(".", "/") if len(spans) > 1 else ""
             location = spans[2].text.strip() if len(spans) > 2 else ""
 
-            sold_div = cols[2].find_element(By.CSS_SELECTOR, "div.text-slate-800")
-            available_div = cols[2].find_element(By.CSS_SELECTOR, "div.text-xs")
+            # Sold
+            try:
+                sold_text = cols[2].find_element(By.CSS_SELECTOR, "div.font-medium").text.strip()
+                sold = int(sold_text)
+            except Exception as e:
+                print(f"⚠️ Couldn't extract 'sold' from row: {e}")
+                sold = 0
 
-            sold = int(sold_div.text.strip()) if sold_div else 0
-
-            available_match = re.search(r'(\d+)', available_div.text.strip())
-            available = int(available_match.group(1)) if available_match else 0
+            # Available
+            try:
+                available_text = cols[2].find_element(By.CSS_SELECTOR, "div.text-xs").text.strip()
+                available_match = re.search(r'\d+', available_text)
+                available = int(available_match.group()) if available_match else 0
+            except Exception as e:
+                print(f"⚠️ Couldn't extract 'available' from row: {e}")
+                available = 0
 
 
             results.append({
