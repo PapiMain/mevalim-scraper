@@ -85,22 +85,23 @@ def login_and_scrape(user):
             date_str = spans[1].text.strip().replace(".", "/") if len(spans) > 1 else ""
             location = spans[2].text.strip() if len(spans) > 2 else ""
 
-            # Sold
+            # --- Get the sold number
             try:
-                sold_text = cols[2].find_element(By.CSS_SELECTOR, "div.font-medium").text.strip()
-                sold = int(sold_text)
+                sold_div = cols[2].find_element(By.XPATH, ".//div[contains(@class,'flex-col')]//div[contains(@class,'font-medium')]")
+                sold = int(sold_div.text.strip())
             except Exception as e:
                 print(f"⚠️ Couldn't extract 'sold' from row: {e}")
                 sold = 0
 
-            # Available
+            # --- Get the available number (extract number from "47 נותרו")
             try:
-                available_text = cols[2].find_element(By.CSS_SELECTOR, "div.text-xs").text.strip()
-                available_match = re.search(r'\d+', available_text)
-                available = int(available_match.group()) if available_match else 0
+                available_div = cols[2].find_element(By.XPATH, ".//div[contains(@class,'flex-col')]//div[contains(text(),'נותרו')]")
+                match = re.search(r'(\d+)', available_div.text.strip())
+                available = int(match.group(1)) if match else 0
             except Exception as e:
                 print(f"⚠️ Couldn't extract 'available' from row: {e}")
                 available = 0
+
 
 
             results.append({
