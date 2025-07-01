@@ -87,13 +87,19 @@ def login_and_scrape(user):
 
             # --- Get the sold number
             try:
-                sold_div = cols[2].find_element(By.CSS_SELECTOR, "a.text-slate-800.font-medium")
-                sold = int(sold_div.text.strip())
+                # Check for the <a> tag (non-zero sold)
+                sold_a = cols[2].find_elements(By.CSS_SELECTOR, "a.text-slate-800.font-medium")
+                if sold_a:
+                    sold = int(sold_a[0].text.strip())
+                else:
+                    # Fallback to <div> which means sold is zero
+                    sold = 0
             except Exception as e:
                 print(f"⚠️ Couldn't extract 'sold' from row: {e}")
-                print(f"Row HTML: {row.get_attribute('outerHTML')}")
+                # print(f"Row HTML: {row.get_attribute('outerHTML')}")
                 sold = 0
-                continue  # or skip if it’s critical
+                continue
+
 
 
             # --- Get the available number (extract number from "47 נותרו")
