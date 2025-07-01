@@ -94,6 +94,7 @@ def login_and_scrape(user):
                 else:
                     # Fallback to <div> which means sold is zero
                     sold = 0
+                    print(f"⚠️ it was a div")
             except Exception as e:
                 print(f"⚠️ Couldn't extract 'sold' from row: {e}")
                 # print(f"Row HTML: {row.get_attribute('outerHTML')}")
