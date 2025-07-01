@@ -91,11 +91,13 @@ def login_and_scrape(user):
                 sold = int(sold_div.text.strip())
             except Exception as e:
                 print(f"⚠️ Couldn't extract 'sold' from row: {e}")
+                print(f"Row HTML: {row.get_attribute('outerHTML')}")
+                continue
                 sold = 0
 
             # --- Get the available number (extract number from "47 נותרו")
             try:
-                available_div = cols[2].find_element(By.CSS_SELECTOR, "div.flex.flex-col div.text-xs")
+                available_div = cols[2].find_element(By.XPATH, ".//div[contains(@class,'flex-col')]//div[contains(text(),'נותרו')]")
                 match = re.search(r'(\d+)', available_div.text.strip())
                 available = int(match.group(1)) if match else 0
             except Exception as e:
