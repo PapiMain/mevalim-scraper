@@ -161,7 +161,7 @@ def update_sheet_with_ticket_data(sheet, all_ticket_data):
             ):
                 sheet.update_cell(i, sold_col + 1, ticket["sold"])
                 # sheet.update_cell(i, total_col + 1, ticket["available"])
-                sheet.update_cell(i, updated_col + 1, now_in_israel.strftime("%d/%m/%Y %H:%M:%S"))
+                sheet.update_cell(i, updated_col + 1, now_in_israel.strftime("%d/%m/%Y %H:%M"))
                 updated_rows.append(i)
                 found = True
                 break
