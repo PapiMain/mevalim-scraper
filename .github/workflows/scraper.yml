@@ -35,7 +35,7 @@ jobs:
 
   keepalive:
     runs-on: ubuntu-latest
-    needs: run-script
+    needs: run-scraper
     if: ${{ github.event_name == 'schedule' }} # only run automatically, not on manual trigger
     steps:
       - name: 🌀 Checkout repo
