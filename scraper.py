@@ -146,8 +146,8 @@ def update_sheet_with_ticket_data(sheet, all_ticket_data):
     updated_col = headers.index("עודכן לאחרונה") + 1
 
     # test if header needs + 1
-    print(headers)
-    print(headers.index("נמכרו"))
+    # print(headers)
+    # print(headers.index("נמכרו"))
 
     israel_tz = pytz.timezone("Asia/Jerusalem")
     now_in_israel = datetime.now(israel_tz).strftime("%d/%m/%Y %H:%M")
