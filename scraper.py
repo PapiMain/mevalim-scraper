@@ -154,8 +154,10 @@ def update_sheet_with_ticket_data(sheet, all_ticket_data):
 
         found = False
         for i, row in enumerate(records, start=2):  # start=2 to skip header
+            title_match = (ticket["title"].strip() in row.get("הפקה").strip()
+                or row.get("הפקה").strip() in ticket["title"].strip())
             if (
-                row.get("הפקה") == ticket["title"]
+                title_match
                 and row.get("תאריך") == ticket_date
                 and row.get("ארגון") == "מבלים"
             ):
