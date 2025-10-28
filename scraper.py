@@ -137,40 +137,67 @@ def login_and_scrape(user):
 def update_sheet_with_ticket_data(sheet, all_ticket_data): 
     print("📥 Updating Google Sheet with ticket data...")
 
+    # Load sheet data once
     records = sheet.get_all_records()
     headers = sheet.row_values(1)
 
-    sold_col = headers.index("נמכרו")
-    total_col = headers.index("קיבלו")
-    updated_col = headers.index("עודכן לאחרונה")
+    sold_col = headers.index("נמכרו") + 1
+    total_col = headers.index("קיבלו") + 1
+    updated_col = headers.index("עודכן לאחרונה") + 1
+
+    # test if header needs + 1
+    print(headers)
+    print(headers.index("נמכרו"))
+
+    israel_tz = pytz.timezone("Asia/Jerusalem")
+    now_in_israel = datetime.now(israel_tz).strftime("%d/%m/%Y %H:%M")
 
     updated_rows = []
     not_updated = []
+    updates = []  # will collect all updates here
 
+    # --- loop all tickets and find matching row ---
     for ticket in all_ticket_data:
         ticket_date = ticket["date"]
-        israel_tz = pytz.timezone('Asia/Jerusalem')
-        now_in_israel = datetime.now(israel_tz)
-
         found = False
+        
         for i, row in enumerate(records, start=2):  # start=2 to skip header
-            title_match = (ticket["title"].strip() in row.get("הפקה").strip()
-                or row.get("הפקה").strip() in ticket["title"].strip())
+            title_match = (ticket["title"].strip() in row.get("הפקה", "").strip()
+                or row.get("הפקה", "").strip() in ticket["title"].strip())
             if (
                 title_match
                 and row.get("תאריך") == ticket_date
                 and row.get("ארגון") == "מבלים"
             ):
-                sheet.update_cell(i, sold_col + 1, ticket["sold"])
-                # sheet.update_cell(i, total_col + 1, ticket["available"])
-                sheet.update_cell(i, updated_col + 1, now_in_israel.strftime("%d/%m/%Y %H:%M"))
+                # collect updates for batch send
+                updates.append({
+                    "range": f"{chr(64 + sold_col)}{i}",
+                    "values": [[ticket["sold"]]],
+                })
+                # If you also want to update 'קיבלו':
+                # updates.append({
+                #     "range": f"{chr(64 + total_col)}{i}",
+                #     "values": [[ticket["available"]]],
+                # })
+                updates.append({
+                    "range": f"{chr(64 + updated_col)}{i}",
+                    "values": [[now_in_israel]],
+                })
+                
                 updated_rows.append(i)
                 found = True
                 break
 
         if not found:
             not_updated.append(ticket)
-
+            
+    # --- send all updates at once ---
+    if updates:
+        sheet.batch_update(updates)
+        print(f"✅ Batch updated {len(updated_rows)} rows in sheet.")
+    else:
+        print("⚠️ No matching rows found to update.")
+        
     # ✅ Print result summary
     updated_data = []
 
@@ -217,14 +244,6 @@ def main():
         print("❌ ERROR: No private key found in GOOGLE_SERVICE_ACCOUNT_JSON.")
         exit(1)
         
-    # --- backup update, sends it to make automation to update sheet
-    # try:
-    #     if WEBHOOK_URL:
-    #         res = requests.post(WEBHOOK_URL, json={"events": all_events})
-    #         res.raise_for_status()
-    #         print("🚀 Data sent to Make successfully.")
-    # except Exception as e:
-    #     print("❌ Failed to send to Make:", e)
 
     # ✅ Update Google Sheet
     try:
