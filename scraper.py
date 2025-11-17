@@ -78,13 +78,26 @@ def login_and_scrape(user):
             if len(cols) < 3:
                 continue
 
+            # old
             # === Inside cols[1] is all the data we're after ===
-            title = cols[1].find_element(By.CSS_SELECTOR, "a[title]").get_attribute("title").strip()
+            # title = cols[1].find_element(By.CSS_SELECTOR, "a[title]").get_attribute("title").strip()
 
-            spans = cols[1].find_elements(By.CSS_SELECTOR, "div.items-center span.text-xs")
+            # spans = cols[1].find_elements(By.CSS_SELECTOR, "div.items-center span.text-xs")
+            # time_str = spans[0].text.strip() if len(spans) > 0 else ""
+            # date_str = spans[1].text.strip().replace(".", "/") if len(spans) > 1 else ""
+            # location = spans[2].text.strip() if len(spans) > 2 else ""
+
+            # new
+            # === Extract Title ===
+            title_el = cols[1].find_element(By.CSS_SELECTOR, "a[title]")
+            title = title_el.get_attribute("title").strip()
+            
+            # === Extract time, date, location ===
+            spans = cols[1].find_elements(By.CSS_SELECTOR, "span.text-xs")
             time_str = spans[0].text.strip() if len(spans) > 0 else ""
             date_str = spans[1].text.strip().replace(".", "/") if len(spans) > 1 else ""
             location = spans[2].text.strip() if len(spans) > 2 else ""
+
 
             # --- Get the sold number
             try:
