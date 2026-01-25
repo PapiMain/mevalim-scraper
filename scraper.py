@@ -115,8 +115,6 @@ def login_and_scrape(user):
                 sold = 0
                 continue
 
-
-
             # --- Get the available number (extract number from "47 נותרו")
             try:
                 available_div = cols[2].find_element(By.XPATH, ".//div[contains(@class,'flex-col')]//div[contains(text(),'נותרו')]")
@@ -125,8 +123,6 @@ def login_and_scrape(user):
             except Exception as e:
                 print(f"⚠️ Couldn't extract 'available' from row: {e}")
                 available = 0
-
-
 
             results.append({
                 "title": title,
