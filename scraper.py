@@ -59,12 +59,17 @@ def login_and_scrape(user):
     print(f"🔐 Logging in as {user['email']}")
     driver = setup_browser()
     driver.get(LOGIN_URL)
-
-    time.sleep(2)
-    driver.find_element(By.ID, "email").send_keys(user["email"])
+    
+    # Wait up to 10 seconds for the email field to appear
+    wait = WebDriverWait(driver, 10)
+    email_field = wait.until(EC.presence_of_element_located((By.ID, "email")))
+    email_field.send_keys(user["email"])
+    
     driver.find_element(By.ID, "password").send_keys(user["password"])
-    driver.find_element(By.CSS_SELECTOR, "button[type=submit]").click()
-
+    
+    # Click the button using the new ID
+    driver.find_element(By.ID, "login_button").click()
+    
     time.sleep(5)
     driver.get(EVENTS_URL)
     time.sleep(3)
