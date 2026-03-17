@@ -196,14 +196,19 @@ def update_appsheet_with_ticket_data(all_ticket_data):
 
     # --- Loop through all tickets and find matching row ---
     for ticket in all_ticket_data:
-        ticket_date = ticket["date"]
+        ticket_date_str = ticket["date"]
         found = False
 
         try:
-            # Handle both 2-digit and 4-digit year formats
-            dt = datetime.strptime(ticket_date, "%d/%m/%y") if len(ticket_date.split("/")[-1]) == 2 else datetime.strptime(ticket_date, "%d/%m/%Y")
-            ticket_date = dt.strftime("%d/%m/%Y")
-        except:
+            # 1. Convert ticket date string to a DATE OBJECT
+            if len(ticket_date_str.split("/")[-1]) == 2:
+                dt = datetime.strptime(ticket_date_str, "%d/%m/%y")
+            else:
+                dt = datetime.strptime(ticket_date_str, "%d/%m/%Y")
+            
+            ticket_date_obj = dt.date() # Keep it as a date object for comparison
+        except Exception as e:
+            print(f"❌ Date parsing error for {ticket_date_str}: {e}")
             not_updated.append(ticket)
             continue
 
@@ -211,15 +216,20 @@ def update_appsheet_with_ticket_data(all_ticket_data):
             row_date_str = str(record.get("תאריך", ""))
             if not row_date_str:
                 continue
-
+            
             try:
-                row_date_obj = datetime.strptime(row_date_str, "%m/%d/%Y").date()
-            except ValueError:
-                # Fallback in case AppSheet format changes
-                try:
-                    row_date_obj = datetime.strptime(row_date_str, "%d/%m/%Y").date()
-                except:
-                    continue
+                # 2. Convert AppSheet row string to a DATE OBJECT
+                # AppSheet often sends MM/DD/YYYY, but let's be safe
+                if "/" in row_date_str:
+                    try:
+                        row_date_obj = datetime.strptime(row_date_str, "%m/%d/%Y").date()
+                    except ValueError:
+                        row_date_obj = datetime.strptime(row_date_str, "%d/%m/%Y").date()
+                else:
+                    # If it's already ISO format (YYYY-MM-DD)
+                    row_date_obj = datetime.fromisoformat(row_date_str).date()
+            except Exception:
+                continue
 
             title_match = (
                 ticket["title"].strip() in record.get("הפקה", "").strip()
@@ -227,11 +237,11 @@ def update_appsheet_with_ticket_data(all_ticket_data):
             )
 
             # for debugging:
-            print(f"Matching Event '{ticket['title']}' on {ticket_date} against Row '{record.get('הפקה', '')}' on {row_date_obj}'")
+            print(f"Matching Event '{ticket['title']}' on {ticket_date_obj} against Row '{record.get('הפקה', '')}' on {row_date_obj}'")
             
             if (
                 title_match
-                and row_date_obj == ticket_date
+                and row_date_obj == ticket_date_obj
                 and record.get("ארגון") == "מבלים"
             ):
                 # Prepare update for this record
