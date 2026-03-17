@@ -176,7 +176,8 @@ def update_appsheet_with_ticket_data(all_ticket_data):
     print("📥 Updating AppSheet with ticket data...")
 
     israel_tz = pytz.timezone("Asia/Jerusalem")
-    now_in_israel = datetime.now(israel_tz).strftime("%d/%m/%Y %H:%M")
+    # Format: 2026-03-17 14:09:00
+    now_in_israel = datetime.now(israel_tz).strftime('%Y-%m-%d %H:%M:00')
 
     client = get_appsheet_client()
     
