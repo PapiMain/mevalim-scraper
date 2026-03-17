@@ -15,6 +15,8 @@ from datetime import datetime
 from tabulate import tabulate
 import re
 import pytz
+from py_appsheet import AppSheetClient
+
 
 # Load environment variables
 load_dotenv()
@@ -24,31 +26,64 @@ if not all([os.getenv("EMAIL"), os.getenv("PASSWORD"), os.getenv("EMAIL2"), os.g
     print("❌ ERROR: Missing environment variables. Please check your .env file.")
     exit(1)
 
-SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-# SERVICE_ACCOUNT_FILE = 'creds/service_account.json'
-
-json_str = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
-service_account_info = json.loads(json_str)
-
-def get_gspread_client():
-
-    # 🔧 Fix the line breaks in the private key
-    if "private_key" in service_account_info:
-        service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
-
-    creds = Credentials.from_service_account_info(service_account_info, scopes=SCOPES)
-    return gspread.authorize(creds)
-
-
 LOGIN_URL = "https://tickets.mevalim.co.il/auth/sign-in"
 EVENTS_URL = "https://tickets.mevalim.co.il/manager/events"
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+# WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 USERS = [
     {"email": os.getenv("EMAIL"), "password": os.getenv("PASSWORD")},
     {"email": os.getenv("EMAIL2"), "password": os.getenv("PASSWORD2")},
 ]
 
+def get_appsheet_client():
+    return AppSheetClient(
+        app_id=os.environ.get("APPSHEET_APP_ID"),
+        api_key=os.environ.get("APPSHEET_APP_KEY"),
+    )
+
+# def get_short_names():
+#     """Fetches show names from AppSheet instead of GSpread."""
+#     client = get_appsheet_client()
+#     try:
+#         # Fetching from 'הפקות' table
+#         rows = client.find_items("הפקות", "")
+#         return [row["שם מקוצר"] for row in rows if row.get("שם מקוצר")]
+#     except Exception as e:
+#         print(f"❌ Error fetching short names: {e}")
+#         return []
+
+def send_appsheet_batch(table_name, updates):
+    """Sends a batch 'Edit' action directly to the AppSheet API."""
+    app_id = os.environ.get("APPSHEET_APP_ID")
+    api_key = os.environ.get("APPSHEET_APP_KEY")
+    
+    url = f"https://api.appsheet.com/api/v1/apps/{app_id}/tables/{table_name}/Action"
+    
+    headers = {
+        "ApplicationToken": api_key,
+        "Content-Type": "application/json"
+    }
+    
+    body = {
+        "Action": "Edit",
+        "Properties": {
+            "Locale": "en-US",
+            "Timezone": "Israel Standard Time"
+        },
+        "Rows": updates
+    }
+    
+    try:
+        response = requests.post(url, headers=headers, json=body)
+        response.raise_for_status()
+        print(f"✅ AppSheet API Response: {response.status_code} - Success")
+        return True
+    except Exception as e:
+        print(f"❌ API Post Error: {e}")
+        if hasattr(e, 'response') and e.response is not None:
+            print(f"Context: {e.response.text}")
+        return False
+    
 def setup_browser():
     options = Options()
     options.add_argument("--headless")
@@ -84,15 +119,6 @@ def login_and_scrape(user):
             cols = row.find_elements(By.TAG_NAME, "td")
             if len(cols) < 3:
                 continue
-
-            # old
-            # === Inside cols[1] is all the data we're after ===
-            # title = cols[1].find_element(By.CSS_SELECTOR, "a[title]").get_attribute("title").strip()
-
-            # spans = cols[1].find_elements(By.CSS_SELECTOR, "div.items-center span.text-xs")
-            # time_str = spans[0].text.strip() if len(spans) > 0 else ""
-            # date_str = spans[1].text.strip().replace(".", "/") if len(spans) > 1 else ""
-            # location = spans[2].text.strip() if len(spans) > 2 else ""
 
             # new
             # === Extract Title ===
@@ -148,99 +174,98 @@ def login_and_scrape(user):
     driver.quit()
     return results
 
-
-# Update Google Sheet with ticket data
-def update_sheet_with_ticket_data(sheet, all_ticket_data): 
-    print("📥 Updating Google Sheet with ticket data...")
-
-    # Load sheet data once
-    records = sheet.get_all_records()
-    headers = sheet.row_values(1)
-
-    sold_col = headers.index("נמכרו") + 1
-    total_col = headers.index("קיבלו") + 1
-    updated_col = headers.index("עודכן לאחרונה") + 1
-
-    # test if header needs + 1
-    # print(headers)
-    # print(headers.index("נמכרו"))
+def update_appsheet_with_ticket_data(all_ticket_data):
+    print("📥 Updating AppSheet with ticket data...")
 
     israel_tz = pytz.timezone("Asia/Jerusalem")
     now_in_israel = datetime.now(israel_tz).strftime("%d/%m/%Y %H:%M")
 
-    updated_rows = []
-    not_updated = []
-    updates = []  # will collect all updates here
+    client = get_appsheet_client()
+    
+    try:
+        # Fetch existing records from AppSheet
+        print("⏳ Fetching current AppSheet records for matching...")
+        existing_records = client.find_items("הופעות עתידיות", "")
+    except Exception as e:
+        print(f"❌ Error fetching existing records from AppSheet: {e}")
+        return
 
-    # --- loop all tickets and find matching row ---
+    updated_IDs = []
+    not_updated = []
+    updated_data = []
+    updates = []  # Collect all updates here
+
+    # --- Loop through all tickets and find matching row ---
     for ticket in all_ticket_data:
         ticket_date = ticket["date"]
         found = False
-        
-        for i, row in enumerate(records, start=2):  # start=2 to skip header
-            title_match = (ticket["title"].strip() in row.get("הפקה", "").strip()
-                or row.get("הפקה", "").strip() in ticket["title"].strip())
+
+        try:
+            # Handle both 2-digit and 4-digit year formats
+            dt = datetime.strptime(ticket_date, "%d/%m/%y") if len(ticket_date.split("/")[-1]) == 2 else datetime.strptime(ticket_date, "%d/%m/%Y")
+            ticket_date = dt.strftime("%d/%m/%Y")
+        except:
+            not_updated.append(ticket)
+            continue
+
+        for record in existing_records:
+            row_date_str = str(record.get("תאריך", ""))
+            if not row_date_str:
+                continue
+
+            try:
+                row_date_obj = datetime.strptime(row_date_str, "%m/%d/%Y").date()
+            except ValueError:
+                # Fallback in case AppSheet format changes
+                try:
+                    row_date_obj = datetime.strptime(row_date_str, "%d/%m/%Y").date()
+                except:
+                    continue
+
+            title_match = (
+                ticket["title"].strip() in record.get("הפקה", "").strip()
+                or record.get("הפקה", "").strip() in ticket["title"].strip()
+            )
             if (
                 title_match
-                and row.get("תאריך") == ticket_date
-                and row.get("ארגון") == "מבלים"
+                and row_date_obj == ticket_date
+                and record.get("ארגון") == "מבלים"
             ):
-                # collect updates for batch send
+                # Prepare update for this record
                 updates.append({
-                    "range": f"{chr(64 + sold_col)}{i}",
-                    "values": [[ticket["sold"]]],
+                    "ID": record.get("ID"),
+                    "נמכרו": ticket["sold"],
+                    # "קיבלו": ticket["available"],
+                    "עודכן לאחרונה": now_in_israel,
                 })
-                # If you also want to update 'קיבלו':
-                # updates.append({
-                #     "range": f"{chr(64 + total_col)}{i}",
-                #     "values": [[ticket["available"]]],
-                # })
-                updates.append({
-                    "range": f"{chr(64 + updated_col)}{i}",
-                    "values": [[now_in_israel]],
-                })
-                
-                updated_rows.append(i)
+                updated_IDs.append(record.get("ID"))
+                updated_data.append(ticket)
                 found = True
                 break
 
         if not found:
             not_updated.append(ticket)
-            
-    # --- send all updates at once ---
+
+    # --- Send updates to AppSheet ---
     if updates:
-        sheet.batch_update(updates)
-        print(f"✅ Batch updated {len(updated_rows)} rows in sheet.")
+        success = send_appsheet_batch("הופעות עתידיות", updates)
+        print(f"✅ Batch updated {len(updated_IDs)} rows in sheet.")
+        if success:
+            print(f"✅ Successfully updated {len(updated_IDs)} rows in AppSheet.")
+        else:
+            print("❌ Failed to update AppSheet.")
     else:
         print("⚠️ No matching rows found to update.")
-        
+
     # ✅ Print result summary
-    updated_data = []
 
-    for ticket in all_ticket_data:
-        ticket_date = ticket["date"]
-        try:
-            dt = datetime.strptime(ticket_date, "%d/%m/%y") if len(ticket_date.split("/")[-1]) == 2 else datetime.strptime(ticket_date, "%d/%m/%Y")
-            ticket_date = dt.strftime("%d/%m/%Y")
-        except:
-            continue
-        for i in updated_rows:
-            row = records[i - 2]
-            if (
-                ticket["title"] == row.get("הפקה") and
-                ticket_date == row.get("תאריך")
-            ):
-                updated_data.append(ticket)
-                break
-
-    # Now print like not_updated
-    print(f"✅ Updated {len(updated_rows)} rows in sheet.")
+    print(f"✅ Updated {len(updated_IDs)} rows in AppSheet.")
     print(f"🗂️  That covers {len(updated_data)} unique events.")
-    print("🟩 Row numbers updated:", updated_rows)
+    print("🟩 IDs updated:", updated_IDs)
     print(tabulate(updated_data, headers="keys", tablefmt="grid", stralign="center"))
 
     if not_updated:
-        print(f"\n⚠️ {len(not_updated)} items were NOT matched in the sheet:")
+        print(f"⚠️ {len(not_updated)} items were NOT matched in AppSheet:")
         print(tabulate(not_updated, headers="keys", tablefmt="grid", stralign="center"))
     else:
         print("✅ All items matched and updated successfully.")
@@ -255,17 +280,10 @@ def main():
             time.sleep(5)
 
     print(f"✅ Scraped {len(all_events)} events total.")
-    print(f"🔍 Loaded service account email: {service_account_info.get('client_email')}")
-    if not service_account_info.get("private_key"):
-        print("❌ ERROR: No private key found in GOOGLE_SERVICE_ACCOUNT_JSON.")
-        exit(1)
-        
 
     # ✅ Update Google Sheet
     try:
-        client = get_gspread_client()
-        sheet = client.open("דאטה אפשיט אופיס").worksheet("כרטיסים")
-        update_sheet_with_ticket_data(sheet, all_events)
+        update_appsheet_with_ticket_data(all_events)
     except Exception as e:
         print("❌ Failed to update Google Sheet:", e)
 
