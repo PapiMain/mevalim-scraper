@@ -26,7 +26,6 @@ if not all([os.getenv("EMAIL"), os.getenv("PASSWORD"), os.getenv("EMAIL2"), os.g
 
 LOGIN_URL = "https://tickets.mevalim.co.il/auth/sign-in"
 EVENTS_URL = "https://tickets.mevalim.co.il/manager/events"
-# WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 USERS = [
     {"email": os.getenv("EMAIL"), "password": os.getenv("PASSWORD")},
@@ -38,17 +37,6 @@ def get_appsheet_client():
         app_id=os.environ.get("APPSHEET_APP_ID"),
         api_key=os.environ.get("APPSHEET_APP_KEY"),
     )
-
-# def get_short_names():
-#     """Fetches show names from AppSheet instead of GSpread."""
-#     client = get_appsheet_client()
-#     try:
-#         # Fetching from 'הפקות' table
-#         rows = client.find_items("הפקות", "")
-#         return [row["שם מקוצר"] for row in rows if row.get("שם מקוצר")]
-#     except Exception as e:
-#         print(f"❌ Error fetching short names: {e}")
-#         return []
 
 def send_appsheet_batch(table_name, updates):
     """Sends a batch 'Edit' action directly to the AppSheet API."""
@@ -237,7 +225,7 @@ def update_appsheet_with_ticket_data(all_ticket_data):
             )
 
             # for debugging:
-            print(f"Matching Event '{ticket['title']}' on {ticket_date_obj} against Row '{record.get('הפקה', '')}' on {row_date_obj}'")
+            # print(f"Matching Event '{ticket['title']}' on {ticket_date_obj} against Row '{record.get('הפקה', '')}' on {row_date_obj}'")
             
             if (
                 title_match
@@ -248,7 +236,6 @@ def update_appsheet_with_ticket_data(all_ticket_data):
                 updates.append({
                     "ID": record.get("ID"),
                     "נמכרו": ticket["sold"],
-                    # "קיבלו": ticket["available"],
                     "עודכן לאחרונה": now_in_israel,
                 })
                 updated_IDs.append(record.get("ID"))
@@ -262,7 +249,6 @@ def update_appsheet_with_ticket_data(all_ticket_data):
     # --- Send updates to AppSheet ---
     if updates:
         success = send_appsheet_batch("כרטיסים", updates)
-        print(f"✅ Batch updated {len(updated_IDs)} rows in sheet.")
         if success:
             print(f"✅ Successfully updated {len(updated_IDs)} rows in AppSheet.")
         else:
@@ -272,8 +258,6 @@ def update_appsheet_with_ticket_data(all_ticket_data):
 
     # ✅ Print result summary
 
-    print(f"✅ Updated {len(updated_IDs)} rows in AppSheet.")
-    print(f"🗂️  That covers {len(updated_data)} unique events.")
     print("🟩 IDs updated:", updated_IDs)
     print(tabulate(updated_data, headers="keys", tablefmt="grid", stralign="center"))
 
