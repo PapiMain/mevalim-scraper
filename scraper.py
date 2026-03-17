@@ -58,7 +58,7 @@ def send_appsheet_batch(table_name, updates):
     url = f"https://api.appsheet.com/api/v1/apps/{app_id}/tables/{table_name}/Action"
     
     headers = {
-        "ApplicationToken": api_key,
+        "ApplicationAccessKey": api_key,
         "Content-Type": "application/json"
     }
     
