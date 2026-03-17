@@ -9,8 +9,6 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 import requests
 from sys import exit
-import gspread
-from google.oauth2.service_account import Credentials
 from datetime import datetime
 from tabulate import tabulate
 import re
@@ -248,7 +246,7 @@ def update_appsheet_with_ticket_data(all_ticket_data):
 
     # --- Send updates to AppSheet ---
     if updates:
-        success = send_appsheet_batch("הופעות עתידיות", updates)
+        success = send_appsheet_batch("כרטיסים", updates)
         print(f"✅ Batch updated {len(updated_IDs)} rows in sheet.")
         if success:
             print(f"✅ Successfully updated {len(updated_IDs)} rows in AppSheet.")
