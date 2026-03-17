@@ -224,6 +224,10 @@ def update_appsheet_with_ticket_data(all_ticket_data):
                 ticket["title"].strip() in record.get("הפקה", "").strip()
                 or record.get("הפקה", "").strip() in ticket["title"].strip()
             )
+
+            # for debugging:
+            print(f"Matching Event '{ticket['title']}' on {ticket_date} against Row '{record.get('הפקה', '')}' on {row_date_obj}'")
+            
             if (
                 title_match
                 and row_date_obj == ticket_date
