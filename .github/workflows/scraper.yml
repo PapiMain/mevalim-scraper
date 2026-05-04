@@ -2,12 +2,7 @@ name: Run Mevalim Scraper Daily
 
 on:
   schedule:
-    # 6:30 AM Israel (Summer) = 3:30 AM UTC
-    # We use '33' minutes instead of '00' to avoid the 4:00 AM traffic jam.
-    - cron: "33 3 * * *"  
-    
-    # 1:30 PM Israel (Summer) = 10:30 AM UTC
-    - cron: "33 10 * * *" 
+    - cron: "0 2,11 * * *"  
   workflow_dispatch:
 
 jobs:
