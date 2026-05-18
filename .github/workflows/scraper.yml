@@ -2,7 +2,7 @@ name: Run Mevalim Scraper Daily
 
 on:
   schedule:
-    - cron: "0 2,11 * * *"  
+    - cron: "0 0,11 * * *"  
   workflow_dispatch:
 
 jobs:
