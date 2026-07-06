@@ -11,10 +11,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10" # or your preferred Python version
 
@@ -35,6 +35,15 @@ jobs:
         run: |
           python scraper.py
 
+      - name: Upload debug artifacts
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: debug-artifacts
+          path: debug/
+          if-no-files-found: ignore
+          retention-days: 7
+
   keepalive:
     runs-on: ubuntu-latest
     needs: run-scraper
@@ -43,7 +52,7 @@ jobs:
       contents: write
     steps:
       - name: 🌀 Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 💾 Keep workflows alive (once a month)
         run: |

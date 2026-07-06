@@ -27,10 +27,27 @@ if not all([os.getenv("EMAIL"), os.getenv("PASSWORD"), os.getenv("EMAIL2"), os.g
 LOGIN_URL = "https://tickets.mevalim.co.il/auth/sign-in"
 EVENTS_URL = "https://tickets.mevalim.co.il/manager/events"
 
+# --- Reliability tuning ---
+WAIT_TIMEOUT = 30        # seconds to wait for a page element before giving up
+LOGIN_MAX_ATTEMPTS = 3   # how many times to retry a full login+scrape per user
+RETRY_BACKOFF = 5        # seconds to wait between retry attempts
+DEBUG_DIR = "debug"      # where screenshots + page HTML are dumped on failure
+
 USERS = [
     {"email": os.getenv("EMAIL"), "password": os.getenv("PASSWORD")},
     {"email": os.getenv("EMAIL2"), "password": os.getenv("PASSWORD2")},
 ]
+
+def save_debug(driver, label):
+    """Dump a screenshot + page HTML so we can see what the CI runner saw on failure."""
+    try:
+        os.makedirs(DEBUG_DIR, exist_ok=True)
+        driver.save_screenshot(os.path.join(DEBUG_DIR, f"{label}.png"))
+        with open(os.path.join(DEBUG_DIR, f"{label}.html"), "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        print(f"🧾 Saved debug artifacts: {label}.png / {label}.html")
+    except Exception as e:
+        print(f"⚠️ Could not save debug artifacts for {label}: {e}")
 
 def get_appsheet_client():
     return AppSheetClient(
@@ -78,24 +95,38 @@ def setup_browser():
     driver = webdriver.Chrome(options=options)
     return driver
 
-def login_and_scrape(user):
-    print(f"🔐 Logging in as {user['email']}")
-    driver = setup_browser()
+def login(driver, user):
+    """Perform login. Waits for real content rather than fixed sleeps. Raises on failure."""
+    wait = WebDriverWait(driver, WAIT_TIMEOUT)
     driver.get(LOGIN_URL)
-    
-    # Wait up to 10 seconds for the email field to appear
-    wait = WebDriverWait(driver, 10)
+
+    # Wait for the email field to actually render (this is what used to time out at 10s)
     email_field = wait.until(EC.presence_of_element_located((By.ID, "email")))
+    email_field.clear()
     email_field.send_keys(user["email"])
-    
+
     driver.find_element(By.ID, "password").send_keys(user["password"])
-    
-    # Click the button using the new ID
     driver.find_element(By.ID, "login_button").click()
-    
-    time.sleep(5)
+
+    # Wait until login actually completes (we leave the sign-in page) instead of sleeping blindly
+    wait.until(lambda d: "sign-in" not in d.current_url)
+
+
+def scrape_events(driver, user):
+    """Load the events page, wait for the table to render, then parse rows."""
+    wait = WebDriverWait(driver, WAIT_TIMEOUT)
     driver.get(EVENTS_URL)
-    time.sleep(3)
+
+    # Wait until the table rows AND their inner title links have rendered.
+    # This is the fix for the intermittent "no such element: a[title]" skips:
+    # previously a fixed time.sleep(3) read the table before the SPA finished rendering.
+    try:
+        wait.until(EC.presence_of_element_located(
+            (By.CSS_SELECTOR, "table tbody tr td a[title]")))
+    except Exception:
+        # Could be a genuinely empty events list — log and carry on with whatever is there.
+        print("⚠️ No event rows with a title link appeared within the timeout.")
+        save_debug(driver, f"no-rows-{user['email'].split('@')[0]}")
 
     rows = driver.find_elements(By.CSS_SELECTOR, "table tbody tr")
     results = []
@@ -157,8 +188,34 @@ def login_and_scrape(user):
             print(f"⚠️ Skipped row due to error: {e}")
             continue
 
-    driver.quit()
     return results
+
+
+def login_and_scrape(user, label):
+    """Log in and scrape for one user, retrying the whole flow on transient failures.
+
+    Each attempt uses a fresh browser. One user failing here does not affect the other
+    user or the AppSheet update — main() isolates them.
+    """
+    last_error = None
+    for attempt in range(1, LOGIN_MAX_ATTEMPTS + 1):
+        driver = setup_browser()
+        try:
+            print(f"🔐 Logging in as {user['email']} (attempt {attempt}/{LOGIN_MAX_ATTEMPTS})")
+            login(driver, user)
+            return scrape_events(driver, user)
+        except Exception as e:
+            last_error = e
+            print(f"⚠️ Attempt {attempt}/{LOGIN_MAX_ATTEMPTS} failed for {user['email']}: {e}")
+            save_debug(driver, f"{label}-attempt{attempt}")
+            if attempt < LOGIN_MAX_ATTEMPTS:
+                print(f"⏳ Retrying in {RETRY_BACKOFF}s...")
+                time.sleep(RETRY_BACKOFF)
+        finally:
+            driver.quit()
+
+    # All attempts exhausted — surface the failure to main() which decides how to proceed.
+    raise last_error
 
 def update_appsheet_with_ticket_data(all_ticket_data):
     print("📥 Updating AppSheet with ticket data...")
@@ -269,20 +326,36 @@ def update_appsheet_with_ticket_data(all_ticket_data):
 
 def main():
     all_events = []
+    failed_users = []
     for i, user in enumerate(USERS):
-        user_events = login_and_scrape(user)
-        all_events.extend(user_events)
+        # Isolate each user: if one login fails after all retries, we log it,
+        # keep whatever the other user scraped, and still push that to AppSheet.
+        try:
+            user_events = login_and_scrape(user, label=f"user{i + 1}")
+            all_events.extend(user_events)
+            print(f"✅ Got {len(user_events)} events from user {i + 1}.")
+        except Exception as e:
+            print(f"❌ User {i + 1} failed after {LOGIN_MAX_ATTEMPTS} attempts, skipping: {e}")
+            failed_users.append(i + 1)
+
         if i < len(USERS) - 1:
             print("⏱ Waiting 5 seconds before next login...")
             time.sleep(5)
 
     print(f"✅ Scraped {len(all_events)} events total.")
+    if failed_users:
+        print(f"⚠️ {len(failed_users)} of {len(USERS)} user(s) failed: {failed_users}")
 
     # ✅ Update Google Sheet
     try:
         update_appsheet_with_ticket_data(all_events)
     except Exception as e:
         print("❌ Failed to update Google Sheet:", e)
+
+    # Fail the CI run (red) only if EVERY user failed — a partial success stays green but logged.
+    if failed_users and len(failed_users) == len(USERS):
+        print("❌ All users failed — exiting with error so the run is flagged.")
+        exit(1)
 
 if __name__ == "__main__":
     main()
