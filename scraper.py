@@ -160,9 +160,10 @@ def scrape_events(driver, user):
                     sold = 0
                     print(f"⚠️ it was a div")
             except Exception as e:
-                print(f"⚠️ Couldn't extract 'sold' from row: {e}")
-                # print(f"Row HTML: {row.get_attribute('outerHTML')}")
-                sold = 0
+                # Couldn't read a reliable 'sold' number. Skip this event rather than push a
+                # bogus 0 to AppSheet, which would overwrite its real sold count. Name the
+                # event so it's clear which one wasn't updated this run.
+                print(f"⚠️ Skipping '{title}' ({date_str}) — couldn't extract 'sold': {e}")
                 continue
 
             # --- Get the available number (extract number from "47 נותרו")
